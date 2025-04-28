@@ -35,7 +35,7 @@ def main():
 
     # Attempt to open the git repo in the current working directory
     cwd = os.getcwd()
-    try:        
+    try:
         repo = git.Repo(cwd, search_parent_directories=True)
     except git.exc.InvalidGitRepositoryError:
         print("Could not find a git repository at {}".format(cwd))
@@ -44,12 +44,12 @@ def main():
     # Load the smartlog config file
     config = configparser.ConfigParser(allow_no_value = True)
     config.read(os.path.join(repo.git_dir, CONFIG_FNAME))
-    
+
     refmap = RefMap(repo.head)
 
     head_refname = config.get("remote", "head", fallback="origin/HEAD")
     # head_refname = config.get("remote", "head", fallback="origin/main")
-    print(f"head_refname={head_refname}")
+    # print(f"head_refname={head_refname}")
     try:
         head_ref = repo.refs[head_refname]
         refmap.add(head_ref)
@@ -60,7 +60,7 @@ def main():
     tree_builder = TreeBuilder(repo, head_ref.commit, date_limit = date_limit)
 
     # Add current head commit
-    print(f"adding head commit {repo.head.commit}")
+    # print(f"adding head commit {repo.head.commit}")
     tree_builder.add(repo.head.commit, ignore_date_limit = True)
 
     # Add all local branches (and remote tracking too)

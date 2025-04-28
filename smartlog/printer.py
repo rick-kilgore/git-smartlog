@@ -108,7 +108,7 @@ class TreeNodePrinter:
         self.refmap = refmap
         res = subprocess.run(['git', 'status', '-b', '--porcelain'], capture_output=True, text=True)
         self.gitBranch = re.sub(r"\.\.\..*$", "", re.sub(r"[#\s]*", "", res.stdout))
-        print("cur branch is " + self.gitBranch)
+        # print("cur branch is " + self.gitBranch)
 
     def node_summary(self, node):
         """
@@ -140,9 +140,7 @@ class TreeNodePrinter:
             line += Style.NORMAL + Fore.WHITE + sha + Fore.RESET + "  "
 
         # Add the commit date as a relative string
-        line += Style.BRIGHT + Fore.BLUE + self.format_commit_date(node.commit.committed_date) + Fore.RESET + Style.NORMAL
-
-        line += " " + (node.commit.summary) + " "
+        line += Style.BRIGHT + Fore.MAGENTA + self.format_commit_date(node.commit.committed_date) + Fore.RESET + Style.NORMAL
 
         # Add any diffs
         diff = self.differential_revision(node.commit)
@@ -156,6 +154,8 @@ class TreeNodePrinter:
         # Add the author
         author = node.commit.author.email.rsplit("@")[0]
         line += author + "  "
+
+        line += "\n  " + (node.commit.summary)
 
         return line
 
