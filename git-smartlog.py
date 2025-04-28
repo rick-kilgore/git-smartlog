@@ -48,6 +48,8 @@ def main():
     refmap = RefMap(repo.head)
 
     head_refname = config.get("remote", "head", fallback="origin/HEAD")
+    # head_refname = config.get("remote", "head", fallback="origin/main")
+    print(f"head_refname={head_refname}")
     try:
         head_ref = repo.refs[head_refname]
         refmap.add(head_ref)
@@ -58,6 +60,7 @@ def main():
     tree_builder = TreeBuilder(repo, head_ref.commit, date_limit = date_limit)
 
     # Add current head commit
+    print(f"adding head commit {repo.head.commit}")
     tree_builder.add(repo.head.commit, ignore_date_limit = True)
 
     # Add all local branches (and remote tracking too)
@@ -70,8 +73,8 @@ def main():
             remote_ref = ref.tracking_branch()
             if remote_ref is not None:
                 logger.debug("Adding remote tracking branch {}".format(remote_ref.name))
-                if remote_ref.commit != ref.commit:
-                    tree_builder.add(remote_ref.commit)
+                #if remote_ref.commit != ref.commit:
+                #    tree_builder.add(remote_ref.commit)
                 refmap.add(remote_ref)
         except ValueError:
             pass
@@ -97,3 +100,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# vim: ts=4 sw=4 sts=4
