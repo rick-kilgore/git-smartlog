@@ -3,6 +3,8 @@ from .builder import TreeNode
 from collections import defaultdict
 from colorama import Fore, Style
 from datetime import datetime
+import re
+import subprocess
 
 class TreePrinter:
     def __init__(self, repo, node_printer):
@@ -55,15 +57,15 @@ class TreePrinter:
                 summary += [""] * (min_summary_len - len(summary))
 
             # 1st line
-            bullet = "*" if child_is_head else "o"
+            bullet = Style.BRIGHT + Fore.CYAN + "⮕ " + Fore.RESET + Style.NORMAL if child_is_head else "◯"
             if i == 0:
                 graph = main_graph_connector + bullet
             else:
                 graph = main_graph_connector + " " + bullet
-            print(prefix + graph + "  " + summary[0])
+            print(prefix + graph + " " + summary.strip())
 
             # Update the connector character
-            graph_connector = "|" if child.is_direct_child() else ":"
+            graph_connector = "┃" if child.is_direct_child() else "⋮"
             if i == 0:
                 main_graph_connector = graph_connector
 
@@ -72,25 +74,25 @@ class TreePrinter:
                 graph = main_graph_connector
             else:
                 graph = main_graph_connector + "/ "
-            print(prefix + graph + "  " + summary[1])
+            #print(prefix + graph + "  " + summary[1])
 
             if i > 0:
                 main_graph_connector = graph_connector
 
             # Remaining lines
-            if i == 0:
-                graph = main_graph_connector
-            else:
-                graph = graph_connector + "  "
-            for line in summary[2:]:
-                print(prefix + graph + "  " + line)
+            #if i == 0:
+            #    graph = main_graph_connector
+            #else:
+            #    graph = graph_connector + "  "
+            #for line in summary[2:]:
+            #    print(prefix + graph + "  " + line)
 
 
             # Spacing to parent node
-            if i < len(node.children) - 1:
-                graph = main_graph_connector
-            else:
-                graph = graph_connector
+            #if i < len(node.children) - 1:
+            #    graph = main_graph_connector
+            #else:
+            #    graph = graph_connector
             print(prefix + graph)
 
     def _sorted_children(self, node):
@@ -104,6 +106,9 @@ class TreeNodePrinter:
     def __init__(self, repo, refmap):
         self.repo = repo
         self.refmap = refmap
+        res = subprocess.run(['git', 'status', '-b', '--porcelain'], capture_output=True, text=True)
+        self.gitBranch = re.sub(r"\.\.\..*$", "", re.sub(r"[#\s]*", "", res.stdout))
+        print("cur branch is " + self.gitBranch)
 
     def node_summary(self, node):
         """
@@ -115,38 +120,54 @@ class TreeNodePrinter:
         if node.commit is None:
             return []
 
-        lines = []
+        # pprint(dir(node.commit))
+
+        # refs
+        refs = []
+        if self.refmap is not None:
+            refs = self.refmap.get(node.commit)
+            # refs = {ref for ref in refs if "origin" not in ref}
 
         # Format the first line and start with the short sha
         line = ""
         sha = self.repo.git.rev_parse(node.commit.hexsha, short=True)
         is_head = (self.repo.head.commit == node.commit) if node.commit is not None else False
-        line += (Fore.MAGENTA if is_head else Fore.YELLOW) + sha + "  " + Fore.RESET
+        if is_head:
+            line += Style.BRIGHT + Fore.CYAN + sha + Fore.RESET + Style.NORMAL + "  "
+        elif len(refs) > 0:
+            line += Style.BRIGHT + Fore.YELLOW + sha + Fore.RESET + Style.NORMAL + "  "
+        else:
+            line += Style.NORMAL + Fore.WHITE + sha + Fore.RESET + "  "
 
-        # Add the author
-        author = node.commit.author.email.rsplit("@")[0]
-        line += author + "  "
+        # Add the commit date as a relative string
+        line += Style.BRIGHT + Fore.BLUE + self.format_commit_date(node.commit.committed_date) + Fore.RESET + Style.NORMAL
+
+        line += " " + (node.commit.summary) + " "
 
         # Add any diffs
         diff = self.differential_revision(node.commit)
         if diff is not None:
             line += Fore.BLUE + diff + "  " + Fore.RESET
 
-        # Add the branche names
-        if self.refmap is not None:
-            refs = self.refmap.get(node.commit)
-            if len(refs) > 0:
-                line += Fore.GREEN + "(" + ", ".join(refs) + ")  " + Fore.RESET
+        # Add the branch names
+        if len(refs) > 0:
+            line += "(" + ", ".join(map(lambda b: self.colorized_branchname(b), refs)) + ")  " + Fore.RESET
 
-        # Add the commit date as a relative string
-        line += self.format_commit_date(node.commit.committed_date) + "  "
+        # Add the author
+        author = node.commit.author.email.rsplit("@")[0]
+        line += author + "  "
 
-        lines.append(line)
+        return line
 
-        # Format the second line
-        lines.append(node.commit.summary)
+    def colorized_branchname(self, bname):
+        if bname == self.gitBranch:
+            return Style.BRIGHT + Fore.CYAN + bname + Fore.RESET + Style.NORMAL
+        if bname in ['main', 'master']:
+            return Style.BRIGHT + Fore.MAGENTA + bname.upper() + Fore.RESET + Style.NORMAL
+        if 'origin' in bname:
+            return Fore.GREEN + bname + Fore.RESET
+        return Style.BRIGHT + Fore.GREEN + bname + Fore.RESET + Style.NORMAL
 
-        return lines
 
 
     def differential_revision(self, commit):
@@ -179,21 +200,17 @@ class TreeNodePrinter:
             if second_diff < 10:
                 return "just now"
             if second_diff < 60:
-                return str(second_diff) + " seconds ago"
-            if second_diff < 120:
-                return "a minute ago"
+                return str(second_diff) + "s"
             if second_diff < 3600:
-                return str(round(second_diff / 60)) + " minutes ago"
-            if second_diff < 7200:
-                return "an hour ago"
+                return str(round(second_diff / 60)) + "m"
             if second_diff < 86400:
-                return str(round(second_diff / 3600)) + " hours ago"
+                return str(round(second_diff / 3600)) + "h"
         if day_diff == 1:
             return "Yesterday"
         if day_diff < 7:
-            return str(day_diff) + " days ago"
+            return str(day_diff) + "d"
         if day_diff < 31:
-            return str(round(day_diff / 7)) + " weeks ago"
+            return str(round(day_diff / 7)) + "wk"
 
         return then.strftime("%Y-%m-%d")
 
@@ -205,18 +222,20 @@ class RefMap:
     def __init__(self, head_ref):
         self.head_ref = head_ref
         self.map = defaultdict(set)
-            
+
         if self.head_ref.is_detached:
             self.map[self.head_ref.commit.hexsha].add("HEAD")
 
     def add(self, ref):
         if not ref:
             return
-        if not self.head_ref.is_detached and self.head_ref.ref == ref:
-            name = "HEAD -> " + ref.name
-        else:
-            name = ref.name
+        #if not self.head_ref.is_detached and self.head_ref.ref == ref:
+        #    name = "HEAD -> " + ref.name
+        #else:
+        name = ref.name
         self.map[ref.commit.hexsha].add(name)
 
     def get(self, commit):
-        return self.map[commit.hexsha]
+        refs = list(self.map[commit.hexsha])
+        refs.sort(key=lambda ref: "zzz" + ref if ref.startswith("origin") else ref)
+        return refs
